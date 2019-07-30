@@ -12,7 +12,7 @@
 #endif
 
 #include "common.hpp"
-#include "ortnet.h"
+#include "onnxruntime/core/session/onnxruntime_cxx_api.h"
 
 std::string keys =
 "{ help  h     | | Print help message. }"
@@ -155,70 +155,72 @@ int main(int argc, char** argv)
 	// net.setPreferableTarget(parser.get<int>("target"));
 	// std::vector<String> outNames = net.getUnconnectedOutLayersNames();
 
-	//*************************************************************************
-	// initialize  enviroment...one enviroment per process
-	// enviroment maintains thread pools and other state info
-	OrtEnv* env;
-	CHECK_STATUS(OrtCreateEnv(ORT_LOGGING_LEVEL_WARNING, "test", &env));
+
+  // initialize  enviroment...one enviroment per process
+  // enviroment maintains thread pools and other state info
+	Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "test");
 
 	// initialize session options if needed
-	OrtSessionOptions* session_options = OrtCreateSessionOptions();
-	OrtSetSessionThreadPoolSize(session_options, 1);
+	Ort::SessionOptions session_options;
+	session_options.SetThreadPoolSize(1);
+
+	// If onnxruntime.dll is built with CUDA enabled, we can uncomment out this line to use CUDA for this
+	// session (we also need to include cuda_provider_factory.h above which defines it)
+	// #include "cuda_provider_factory.h"
+	// OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 1);
 
 	// Sets graph optimization level
 	// Available levels are
 	// 0 -> To disable all optimizations
 	// 1 -> To enable basic optimizations (Such as redundant node removals)
 	// 2 -> To enable all optimizations (Includes level 1 + more complex optimizations like node fusions)
-	OrtSetSessionGraphOptimizationLevel(session_options, 1);
+	session_options.SetGraphOptimizationLevel(1);
 
 	//*************************************************************************
 	// create session and load model into memory
-	OrtSession* session;
-	const wchar_t* model_path = L"model_040000.onnx";
-	CHECK_STATUS(OrtCreateSession(env, model_path, session_options, &session));
+	// using squeezenet version 1.3
+	// URL = https://github.com/onnx/models/tree/master/squeezenet
+#ifdef _WIN32
+	const wchar_t* model_path = L"D:/REPOs/ML/ssdIE/dnnOCV/build/RelWithDebInfo/model_040000.onnx";
+#else
+	const char* model_path = "D:/REPOs/ML/ssdIE/dnnOCV/build/RelWithDebInfo/model.onnx";
+#endif
+
+	printf("Using Onnxruntime C++ API\n");
+	Ort::Session session(env, model_path, session_options);
 
 	//*************************************************************************
 	// print model input layer (node names, types, shape etc.)
-	size_t num_input_nodes;
-	OrtStatus* status;
-	OrtAllocator* allocator;
-	OrtCreateDefaultAllocator(&allocator);
+	Ort::Allocator allocator = Ort::Allocator::CreateDefault();
 
 	// print number of model input nodes
-	status = OrtSessionGetInputCount(session, &num_input_nodes);
+	size_t num_input_nodes = session.GetInputCount();
 	std::vector<const char*> input_node_names(num_input_nodes);
-	std::vector<int64_t> input_node_dims;	// simplify... this model has only 1 input node {1, 3, 224, 224}.
-											// Otherwise need vector<vector<>>
+	std::vector<int64_t> input_node_dims;  // simplify... this model has only 1 input node {1, 3, 224, 224}.
+										   // Otherwise need vector<vector<>>
 
 	printf("Number of inputs = %zu\n", num_input_nodes);
 
 	// iterate over all input nodes
-	for (size_t i = 0; i < num_input_nodes; i++) {
+	for (int i = 0; i < num_input_nodes; i++) {
 		// print input node names
-		char* input_name;
-		status = OrtSessionGetInputName(session, i, allocator, &input_name);
-		printf("Input %zu : name=%s\n", i, input_name);
+		char* input_name = session.GetInputName(i, allocator);
+		printf("Input %d : name=%s\n", i, input_name);
 		input_node_names[i] = input_name;
 
 		// print input node types
-		OrtTypeInfo* typeinfo;
-		status = OrtSessionGetInputTypeInfo(session, i, &typeinfo);
-		const OrtTensorTypeAndShapeInfo* tensor_info = OrtCastTypeInfoToTensorInfo(typeinfo);
-		ONNXTensorElementDataType type = OrtGetTensorElementType(tensor_info);
-		printf("Input %zu : type=%d\n", i, type);
+		Ort::TypeInfo type_info = session.GetInputTypeInfo(i);
+		auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+
+		ONNXTensorElementDataType type = tensor_info.GetElementType();
+		printf("Input %d : type=%d\n", i, type);
 
 		// print input shapes/dims
-		size_t num_dims = OrtGetNumOfDimensions(tensor_info);
-		printf("Input %zu : num_dims=%zu\n", i, num_dims);
-		input_node_dims.resize(num_dims);
-		OrtGetDimensions(tensor_info, (int64_t*)input_node_dims.data(), num_dims);
-		for (size_t j = 0; j < num_dims; j++)
-			printf("Input %zu : dim %zu=%jd\n", i, j, input_node_dims[j]);
-
-		OrtReleaseTypeInfo(typeinfo);
+		input_node_dims = tensor_info.GetShape();
+		printf("Input %d : num_dims=%zu\n", i, input_node_dims.size());
+		for (int j = 0; j < input_node_dims.size(); j++)
+			printf("Input %d : dim %d=%jd\n", i, j, input_node_dims[j]);
 	}
-	OrtReleaseAllocator(allocator);
 
 	// Results should be...
 	// Number of inputs = 1
@@ -236,6 +238,45 @@ int main(int argc, char** argv)
 	// OrtSessionGetOutputTypeInfo() as shown above.
 
 
+  //*************************************************************************
+  // Score the model using sample data, and inspect values
+
+	size_t input_tensor_size = 1 * 3 * 320 * 320;  // simplify ... using known dim values to calculate size
+											   // use OrtGetTensorShapeElementCount() to get official size!
+
+	std::vector<float> input_tensor_values(input_tensor_size);
+	std::vector<const char*> output_node_names = { "boxes", "scores" };
+
+	// initialize input data with values in [0.0, 1.0]
+	for (unsigned int i = 0; i < input_tensor_size; i++)
+		input_tensor_values[i] = (float)i / (input_tensor_size + 1);
+
+	// create input tensor object from data values
+	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+	Ort::Value input_tensor = Ort::Value::CreateTensor<float>(allocator_info, input_tensor_values.data(), input_tensor_size, input_node_dims.data(), 4);
+	assert(input_tensor.IsTensor());
+
+	// score model & input tensor, get back output tensor
+	auto output_tensors = session.Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 2);
+	assert(output_tensors.size() == 2 && output_tensors.front().IsTensor());
+
+/*
+	// Get pointer to output tensor float values
+	float* floatarr = output_tensors.front().GetTensorMutableData<float>();
+	assert(abs(floatarr[0] - 0.000045) < 1e-6);
+
+	// score the model, and print scores for first 5 classes
+	for (int i = 0; i < 5; i++)
+		printf("Score for class [%d] =  %f\n", i, floatarr[i]);
+
+	// Results should be as below...
+	// Score for class[0] = 0.000045
+	// Score for class[1] = 0.003846
+	// Score for class[2] = 0.000125
+	// Score for class[3] = 0.001180
+	// Score for class[4] = 0.001317
+*/
+	printf("Done!\n");
 
 	// Create a window
 	static const std::string kWinName = "Deep learning object detection in OpenCV";
