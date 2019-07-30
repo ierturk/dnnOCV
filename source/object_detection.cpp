@@ -1,5 +1,7 @@
 #include <fstream>
 #include <sstream>
+#include <chrono>
+#include <iostream>
 
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
@@ -39,6 +41,7 @@ std::string keys =
 
 using namespace cv;
 using namespace dnn;
+using namespace std::chrono;
 
 float confThreshold, nmsThreshold;
 std::vector<std::string> classes;
@@ -174,7 +177,7 @@ int main(int argc, char** argv)
 	// 0 -> To disable all optimizations
 	// 1 -> To enable basic optimizations (Such as redundant node removals)
 	// 2 -> To enable all optimizations (Includes level 1 + more complex optimizations like node fusions)
-	session_options.SetGraphOptimizationLevel(1);
+	session_options.SetGraphOptimizationLevel(2);
 
 	//*************************************************************************
 	// create session and load model into memory
@@ -257,10 +260,16 @@ int main(int argc, char** argv)
 	assert(input_tensor.IsTensor());
 
 	// score model & input tensor, get back output tensor
-	auto output_tensors = session.Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 2);
-	assert(output_tensors.size() == 2 && output_tensors.front().IsTensor());
+	for (int i = 0; i < 10; i++) {
+		auto start = std::chrono::high_resolution_clock::now();
+		auto output_tensors = session.Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 2);
+		auto end = std::chrono::high_resolution_clock::now();
+		assert(output_tensors.size() == 2 && output_tensors.front().IsTensor());
 
-/*
+		auto duration = duration_cast<milliseconds>(end - start);
+		std::cout << "inference taken : " << duration.count() << " ms" << "\n";
+	}
+	/*
 	// Get pointer to output tensor float values
 	float* floatarr = output_tensors.front().GetTensorMutableData<float>();
 	assert(abs(floatarr[0] - 0.000045) < 1e-6);
