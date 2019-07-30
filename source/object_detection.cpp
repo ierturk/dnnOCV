@@ -114,11 +114,13 @@ int main(int argc, char** argv)
 
 	parser = CommandLineParser(argc, argv, keys);
 	parser.about("Use this script to run object detection deep learning networks using OpenCV.");
+	/*
 	if (argc == 1 || parser.has("help"))
 	{
 		parser.printMessage();
 		return 0;
 	}
+	*/
 
 	confThreshold = parser.get<float>("thr");
 	nmsThreshold = parser.get<float>("nms");
@@ -128,7 +130,7 @@ int main(int argc, char** argv)
 	int inpWidth = parser.get<int>("width");
 	int inpHeight = parser.get<int>("height");
 	size_t async = parser.get<int>("async");
-	CV_Assert(parser.has("model"));
+	// CV_Assert(parser.has("model"));
 	std::string modelPath = findFile(parser.get<String>("model"));
 	std::string configPath = findFile(parser.get<String>("config"));
 
@@ -147,10 +149,10 @@ int main(int argc, char** argv)
 	}
 
 	// Load a model.
-	Net net = readNet(modelPath, configPath, parser.get<String>("framework"));
-	net.setPreferableBackend(parser.get<int>("backend"));
-	net.setPreferableTarget(parser.get<int>("target"));
-	std::vector<String> outNames = net.getUnconnectedOutLayersNames();
+	// Net net = readNet(modelPath, configPath, parser.get<String>("framework"));
+	// net.setPreferableBackend(parser.get<int>("backend"));
+	// net.setPreferableTarget(parser.get<int>("target"));
+	// std::vector<String> outNames = net.getUnconnectedOutLayersNames();
 
 	// Create a window
 	static const std::string kWinName = "Deep learning object detection in OpenCV";
@@ -209,9 +211,10 @@ int main(int argc, char** argv)
 			// Process the frame
 			if (!frame.empty())
 			{
-				preprocess(frame, net, Size(inpWidth, inpHeight), scale, mean, swapRB);
+				// preprocess(frame, net, Size(inpWidth, inpHeight), scale, mean, swapRB);
 				processedFramesQueue.push(frame);
 
+				/*
 				if (async)
 				{
 					futureOutputs.push(net.forwardAsync());
@@ -222,6 +225,7 @@ int main(int argc, char** argv)
 					net.forward(outs, outNames);
 					predictionsQueue.push(outs);
 				}
+				*/
 			}
 
 			while (!futureOutputs.empty() &&
@@ -239,21 +243,26 @@ int main(int argc, char** argv)
 	// Postprocessing and rendering loop
 	while (waitKey(1) < 0)
 	{
+		/*
 		if (predictionsQueue.empty())
 			continue;
+		*/
 
-		std::vector<Mat> outs = predictionsQueue.get();
+		// std::vector<Mat> outs = predictionsQueue.get();
+		if (processedFramesQueue.empty())
+			continue;
+
 		Mat frame = processedFramesQueue.get();
 
-		postprocess(frame, outs, net);
+		// postprocess(frame, outs, net);
 
-		if (predictionsQueue.counter > 1)
+		// if (predictionsQueue.counter > 1)
 		{
 			std::string label = format("Camera: %.2f FPS", framesQueue.getFPS());
 			putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
-			label = format("Network: %.2f FPS", predictionsQueue.getFPS());
-			putText(frame, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+			// label = format("Network: %.2f FPS", predictionsQueue.getFPS());
+			// putText(frame, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
 			label = format("Skipped frames: %d", framesQueue.counter - predictionsQueue.counter);
 			putText(frame, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
