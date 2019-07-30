@@ -1,0 +1,10 @@
+python object_detection.py --config=../yoloData/clk/cow-tiny.cfg --model=weights/best-tiny.weights --classes=../yoloData/clk/cow.names --width=320 --height=320 --scale=0.00392 --rgb --input ..\..\data\VID_20190627_191450.mp4
+
+
+python detect.py --data-cfg ../yoloData/clk/cow.data --cfg ../yoloData/clk/cow.cfg --weights weights/best.weights
+
+python object_detection.py --model=D:/REPOs/ML/ssdIE/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/ssd.onnx --classes=D:/REPOs/ML/yoloIE/yoloData/clk/cow.names --width=320 --height=320 --scale=0.00392 --rgb 
+
+ssd-app.exe --config=..\..\..\..\yoloIE\yoloData\clk\cow-tiny.cfg --model=..\..\..\..\yoloIE\yoloUltralytics\weights\best-tiny-1000.weights --classes=..\..\..\..\yoloIE\yoloData\clk\cow.names --width=320 --height=320 --scale=0.00392 --rgb --input ..\..\..\..\data\VID_20190627_191450.mp4
+
+ssd-app.exe --model=.\model_040000.onnx --classes=..\..\..\..\yoloIE\yoloData\clk\cow.names --width=320 --height=320 --scale=0.00392 --rgb --input ..\..\..\..\data\VID_20190627_191450.mp4
