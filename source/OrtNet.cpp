@@ -82,48 +82,56 @@ void OrtNet::Init(const wchar_t* model_path)
 	// initialize input data with values in [0.0, 1.0]
 	for (unsigned int i = 0; i < input_node_sizes[0]; i++)
 		input_tensor_values[i] = (float)i / (input_node_sizes[0] + 1);
-
-	// create input tensor object from data values
-	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-	Ort::Value input_tensor = Ort::Value::CreateTensor<float>(allocator_info, input_tensor_values.data(), input_node_sizes[0], input_node_dims[0].data(), 4);
-	assert(input_tensor.IsTensor());
-
-	// score model & input tensor, get back output tensor
-	// for (int i = 0; i < 10; i++)
-	// {
-	auto start = std::chrono::high_resolution_clock::now();
-	auto output_tensors = session.Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 2);
-	auto end = std::chrono::high_resolution_clock::now();
-	assert(output_tensors.size() == 2 && output_tensors.front().IsTensor());
-
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-	std::cout << "inference taken : " << duration.count() << " ms" << "\n";
-	// }
-
-
-	// Get pointer to output tensor float values
-	auto scores = output_tensors[0].GetTensorMutableData<float[1][3234][78]>();
-	auto boxes = output_tensors[1].GetTensorMutableData<float[1][3234][4]>();
-
-	// score the model, and print scores for first 5 classes
-	// for (int i = 0; i < 5; i++)
-	//	printf("Score for class [%d] =  %f\n", i, scores[i]);
-
-	// Results should be as below...
-	// Score for class[0] = 0.000045
-	// Score for class[1] = 0.003846
-	// Score for class[2] = 0.000125
-	// Score for class[3] = 0.001180
-	// Score for class[4] = 0.001317
-
-	printf("Done!\n");
-
-
 }
 #else
 void OrtNet::Init(const char* model_path)
 {
-
 }
 #endif
+
+
+void OrtNet::setInputTensor(const cv::Mat& frame)
+{
+	static cv::Mat blob = cv::dnn::blobFromImage(
+		frame,
+		1.0,
+		cv::Size(320,320),
+		cv::Scalar(123, 117, 104),
+		true, 
+		false, 
+		CV_32F);
+
+	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+	input_tensor = Ort::Value::CreateTensor<float>(
+		allocator_info,
+		blob.ptr<float>(),
+		input_node_sizes[0],
+		input_node_dims[0].data(),
+		input_node_dims[0].size());
+
+	assert(input_tensor.IsTensor());
+}
+
+void OrtNet::forward()
+{
+	output_tensor = session.Run(
+		Ort::RunOptions{ nullptr },
+		input_node_names.data(),
+		&input_tensor,
+		input_node_names.size(),
+		output_node_names.data(),
+		output_node_names.size());
+
+
+
+	scores = output_tensor[0].GetTensorMutableData<float[1][3234][78]>();
+	boxes = output_tensor[1].GetTensorMutableData<float[1][3234][4]>();
+	outs = std::make_pair(scores, boxes);
+}
+
+std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> OrtNet::getOuts()
+{
+	return outs;
+}
 
