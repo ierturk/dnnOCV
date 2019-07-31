@@ -101,6 +101,16 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 		false, 
 		CV_32F);
 
+/*
+	static cv::Mat resized_image;
+	cv::flip(frame, resized_image, 1);
+	cv::cvtColor(resized_image, resized_image, cv::COLOR_BGR2RGB);
+	cv::resize(resized_image, resized_image, cv::Size(320, 320));
+	static cv::Mat img_float;
+	resized_image.convertTo(img_float, CV_32F, 1);
+	cv::subtract(img_float, cv::Scalar(123.0f, 117.0f, 104.0f), img_float);
+*/
+	
 	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
 	input_tensor = Ort::Value::CreateTensor<float>(
@@ -123,14 +133,12 @@ void OrtNet::forward()
 		output_node_names.data(),
 		output_node_names.size());
 
-
-
-	scores = output_tensor[0].GetTensorMutableData<float[1][3234][78]>();
-	boxes = output_tensor[1].GetTensorMutableData<float[1][3234][4]>();
+	scores = output_tensor[0].GetTensorMutableData<float>();
+	boxes = output_tensor[1].GetTensorMutableData<float>();
 	outs = std::make_pair(scores, boxes);
 }
 
-std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> OrtNet::getOuts()
+std::pair<float*, float*> OrtNet::getOuts()
 {
 	return outs;
 }

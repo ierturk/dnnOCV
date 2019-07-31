@@ -49,7 +49,7 @@ using namespace std::chrono;
 float confThreshold, nmsThreshold;
 std::vector<std::string> classes;
 
-void postprocess(Mat& frame, std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> outs);
+void postprocess(Mat& frame, std::pair<float*, float*> outs);
 
 void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame);
 
@@ -165,10 +165,13 @@ int main(int argc, char** argv)
 
 	// Open a video file or an image file or a camera stream.
 	VideoCapture cap;
+	/*
 	if (parser.has("input"))
 		cap.open(parser.get<String>("input"));
 	else
 		cap.open(parser.get<int>("device"));
+	*/
+	cap.open("D:/REPOs/ML/data/VID_20190627_191450.mp4");
 
 #ifdef CV_CXX11
 	bool process = true;
@@ -180,64 +183,38 @@ int main(int argc, char** argv)
 		while (process)
 		{
 			cap >> frame;
+			// cv::flip(frame, frame, 1);
 			if (!frame.empty())
 				framesQueue.push(frame.clone());
 			else
 				break;
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(30));
 		}
 		});
 
 	// Frames processing thread
 	QueueFPS<Mat> processedFramesQueue;
-	QueueFPS<std::pair<float(*)[1][3234][78], float(*)[1][3234][4]>> predictionsQueue;
+	QueueFPS<std::pair<float*, float*>> predictionsQueue;
 	std::thread processingThread([&]() {
-		std::queue<AsyncArray> futureOutputs;
-		Mat blob;
 		while (process)
 		{
 			// Get a next frame
 			Mat frame;
+			if (!framesQueue.empty())
 			{
-				if (!framesQueue.empty())
-				{
-					frame = framesQueue.get();
-					if (async)
-					{
-						if (futureOutputs.size() == async)
-							frame = Mat();
-					}
-					else
-						framesQueue.clear();  // Skip the rest of frames
-				}
+				frame = framesQueue.get();
+				framesQueue.clear();
 			}
 
 			// Process the frame
 			if (!frame.empty())
 			{
 				ortNet.setInputTensor(frame);
+				ortNet.forward();
 				processedFramesQueue.push(frame);
-
-
-				if (async)
-				{
-					CV_Error(Error::StsNotImplemented, "Async forward not implemented!");
-				}
-				else
-				{
-					ortNet.forward();
-					predictionsQueue.push(ortNet.getOuts());
-				}
+				predictionsQueue.push(ortNet.getOuts());
 				
-			}
-
-			while (!futureOutputs.empty() &&
-				futureOutputs.front().wait_for(std::chrono::seconds(0)))
-			{
-				AsyncArray async_out = futureOutputs.front();
-				futureOutputs.pop();
-				Mat out;
-				async_out.get(out);
-				// predictionsQueue.push({ out });
 			}
 		}
 		});
@@ -247,8 +224,8 @@ int main(int argc, char** argv)
 	{
 		if (predictionsQueue.empty())
 			continue;
+		std::pair<float*, float*> outs = predictionsQueue.get();
 
-		std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> outs = predictionsQueue.get();
 		if (processedFramesQueue.empty())
 			continue;
 
@@ -256,7 +233,7 @@ int main(int argc, char** argv)
 
 		postprocess(frame, outs);
 
-		// if (predictionsQueue.counter > 1)
+		if (predictionsQueue.counter > 1)
 		{
 			std::string label = format("Camera: %.2f FPS", framesQueue.getFPS());
 			putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
@@ -267,6 +244,7 @@ int main(int argc, char** argv)
 			label = format("Skipped frames: %d", framesQueue.counter - predictionsQueue.counter);
 			putText(frame, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 		}
+
 		imshow(kWinName, frame);
 	}
 
@@ -310,7 +288,7 @@ int main(int argc, char** argv)
 }
 
 
-void postprocess(Mat& frame, std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> outs)
+void postprocess(Mat& frame, std::pair<float*, float*> outs)
 {
 	std::vector<int> classIds;
 	std::vector<float> confidences;
@@ -323,19 +301,19 @@ void postprocess(Mat& frame, std::pair<float(*)[1][3234][78], float(*)[1][3234][
 
 	for (size_t i = 0; i < 3234; i++) {
 		for (size_t j = 1; j < 78; j++) {
-			float confidence = *ssd_scores[0][i][j];
+			float confidence = ssd_scores[78 * i + j];
 			if (confidence > confThreshold)
 			{
-				int centerX = (int)(*ssd_boxes[0][i][0] * frame.cols);
-				int centerY = (int)(*ssd_boxes[0][i][1] * frame.rows);
-				int width = (int)(*ssd_boxes[0][i][2] * frame.cols);
-				int height = (int)(*ssd_boxes[0][i][3] * frame.rows);
+				int centerX = (int)(ssd_boxes[4*i] * frame.cols);
+				int centerY = (int)(ssd_boxes[4*i + 1] * frame.rows);
+				int width = (int)(ssd_boxes[4*i + 2] * frame.cols);
+				int height = (int)(ssd_boxes[4*i + 3] * frame.rows);
 				int left = centerX - width / 2;
 				int top = centerY - height / 2;
 
 				classIds.push_back((int)j - 1);;
 				confidences.push_back((float)confidence);
-				boxes.push_back(Rect(left, top, width, height));
+				boxes.push_back(cv::Rect(left, top, width, height));
 			}
 		}
 	}

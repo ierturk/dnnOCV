@@ -5,6 +5,7 @@
 #include <cassert>
 #include "onnxruntime/core/session/onnxruntime_cxx_api.h"
 #include <opencv2/dnn.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 
 class OrtNet
@@ -23,7 +24,7 @@ public:
 	// Ort::Value getInputTensor(Mat blob);
 	void setInputTensor(const cv::Mat& frame);
 	void forward();
-	std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> getOuts();
+	std::pair<float*, float*> getOuts();
 
 private:
 	// Ort Environment
@@ -43,7 +44,7 @@ private:
 	std::vector<size_t> output_node_sizes = std::vector<size_t>();
 	std::vector<std::vector<int64_t>> output_node_dims = std::vector<std::vector<int64_t>>();
 	std::vector<Ort::Value> output_tensor = std::vector<Ort::Value>();
-	float(*scores)[1][3234][78] = NULL;
-	float(*boxes)[1][3234][4] = NULL;
-	std::pair<float(*)[1][3234][78], float(*)[1][3234][4]> outs = std::pair<float(*)[1][3234][78], float(*)[1][3234][4]>();
+	float *scores = NULL;
+	float* boxes = NULL;
+	std::pair<float*, float*> outs = std::pair<float*, float*>();
 };
