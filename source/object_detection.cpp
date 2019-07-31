@@ -14,8 +14,10 @@
 #include <queue>
 #endif
 
-#include "common.hpp"
+#include "common.h"
 #include "onnxruntime/core/session/onnxruntime_cxx_api.h"
+
+#include "OrtNet.h"
 
 std::string keys =
 "{ help  h     | | Print help message. }"
@@ -54,6 +56,9 @@ void postprocess(Mat& frame, const std::vector<Mat>& out, Net& net);
 void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame);
 
 void callback(int pos, void* userdata);
+
+OrtNet &ortNet = OrtNet();
+
 
 #ifdef CV_CXX11
 template <typename T>
@@ -152,35 +157,17 @@ int main(int argc, char** argv)
 		}
 	}
 
-	// Load a model.
-	// Net net = readNet(modelPath, configPath, parser.get<String>("framework"));
-	// net.setPreferableBackend(parser.get<int>("backend"));
-	// net.setPreferableTarget(parser.get<int>("target"));
-	// std::vector<String> outNames = net.getUnconnectedOutLayersNames();
+	ortNet.Init(L"D:/REPOs/ML/ssdIE/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx");
 
-
-  // initialize  enviroment...one enviroment per process
-  // enviroment maintains thread pools and other state info
+/*
+	// initialize  enviroment...one enviroment per process
 	Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "test");
 
 	// initialize session options if needed
 	Ort::SessionOptions session_options;
 	session_options.SetThreadPoolSize(1);
-
-	// If onnxruntime.dll is built with CUDA enabled, we can uncomment out this line to use CUDA for this
-	// session (we also need to include cuda_provider_factory.h above which defines it)
-	// #include "cuda_provider_factory.h"
-	// OrtSessionOptionsAppendExecutionProvider_CUDA(session_options, 1);
-
-	// Sets graph optimization level
-	// Available levels are
-	// 0 -> To disable all optimizations
-	// 1 -> To enable basic optimizations (Such as redundant node removals)
-	// 2 -> To enable all optimizations (Includes level 1 + more complex optimizations like node fusions)
 	session_options.SetGraphOptimizationLevel(2);
 
-	//*************************************************************************
-	// create session and load model into memory
 #ifdef _WIN32
 	const wchar_t* model_path = L"D:/REPOs/ML/ssdIE/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx";
 #else
@@ -190,16 +177,12 @@ int main(int argc, char** argv)
 	std::cerr << "Using Onnxruntime C++ API" << '\n';
 	Ort::Session session(env, model_path, session_options);
 
-	//*************************************************************************
-	// print model input layer (node names, types, shape etc.)
 	Ort::Allocator allocator = Ort::Allocator::CreateDefault();
 
 	// print number of model input nodes
 	size_t num_input_nodes = session.GetInputCount();
 	std::vector<const char*> input_node_names(num_input_nodes);
-	std::vector<int64_t> input_node_dims;  // simplify... this model has only 1 input node {1, 3, 320, 320}.
-										   // Otherwise need vector<vector<>>
-
+	std::vector<int64_t> input_node_dims;
 	printf("Number of inputs = %zu\n", num_input_nodes);
 
 	// iterate over all input nodes
@@ -212,6 +195,7 @@ int main(int argc, char** argv)
 		// print input node types
 		Ort::TypeInfo type_info = session.GetInputTypeInfo(i);
 		auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+		auto elements = tensor_info.GetElementCount();
 
 		ONNXTensorElementDataType type = tensor_info.GetElementType();
 		printf("Input %d : type=%d\n", i, type);
@@ -223,27 +207,10 @@ int main(int argc, char** argv)
 			printf("Input %d : dim %d=%jd\n", i, j, input_node_dims[j]);
 	}
 
-	// Results should be...
-	// Number of inputs = 1
-	// Input 0 : name = data_0
-	// Input 0 : type = 1
-	// Input 0 : num_dims = 4
-	// Input 0 : dim 0 = 1
-	// Input 0 : dim 1 = 3
-	// Input 0 : dim 2 = 224
-	// Input 0 : dim 3 = 224
-
-	//*************************************************************************
-	// Similar operations to get output node information.
-	// Use OrtSessionGetOutputCount(), OrtSessionGetOutputName()
-	// OrtSessionGetOutputTypeInfo() as shown above.
-
 	// print number of model output nodes
 	size_t num_output_nodes = session.GetOutputCount();
 	std::vector<const char*> output_node_names(num_output_nodes);
-	std::vector<int64_t> output_node_dims;  // simplify... this model has only 1 input node {1, 3, 320, 320}.
-										   // Otherwise need vector<vector<>>
-
+	std::vector<int64_t> output_node_dims;
 	printf("Number of outputs = %zu\n", num_output_nodes);
 
 	// iterate over all input nodes
@@ -315,6 +282,8 @@ int main(int argc, char** argv)
 	// Score for class[4] = 0.001317
 
 	printf("Done!\n");
+
+*/
 
 	// Create a window
 	static const std::string kWinName = "Deep learning object detection in OpenCV";
@@ -476,7 +445,7 @@ inline void preprocess(const Mat& frame, Size inpSize, float scale, const Scalar
 	// Create a 4D blob from a frame.
 	if (inpSize.width <= 0) inpSize.width = frame.cols;
 	if (inpSize.height <= 0) inpSize.height = frame.rows;
-	static Mat blob = blobFromImage(frame, 1.0, inpSize, Scalar(), swapRB, false, CV_32F);
+	static Mat blob = blobFromImage(frame, 1.0, inpSize, mean, swapRB, false, CV_32F);
 	auto s = blob.size.p;
 	// std::cout << s[0] << " - " << s[1] << " - " << s[2] << " - " << s[3] << "\n";
 	// create input tensor object from data values
