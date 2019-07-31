@@ -2,6 +2,7 @@
 #include <sstream>
 #include <chrono>
 #include <iostream>
+#include <cstdio>
 
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
@@ -46,8 +47,7 @@ using namespace std::chrono;
 float confThreshold, nmsThreshold;
 std::vector<std::string> classes;
 
-inline void preprocess(const Mat& frame, Net& net, Size inpSize, float scale,
-	const Scalar& mean, bool swapRB);
+inline void preprocess(const Mat& frame, Size inpSize, float scale, const Scalar& mean, bool swapRB);
 
 void postprocess(Mat& frame, const std::vector<Mat>& out, Net& net);
 
@@ -181,15 +181,13 @@ int main(int argc, char** argv)
 
 	//*************************************************************************
 	// create session and load model into memory
-	// using squeezenet version 1.3
-	// URL = https://github.com/onnx/models/tree/master/squeezenet
 #ifdef _WIN32
-	const wchar_t* model_path = L"D:/REPOs/ML/ssdIE/dnnOCV/build/RelWithDebInfo/model_040000.onnx";
+	const wchar_t* model_path = L"D:/REPOs/ML/ssdIE/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx";
 #else
 	const char* model_path = "D:/REPOs/ML/ssdIE/dnnOCV/build/RelWithDebInfo/model.onnx";
 #endif
 
-	printf("Using Onnxruntime C++ API\n");
+	std::cerr << "Using Onnxruntime C++ API" << '\n';
 	Ort::Session session(env, model_path, session_options);
 
 	//*************************************************************************
@@ -199,7 +197,7 @@ int main(int argc, char** argv)
 	// print number of model input nodes
 	size_t num_input_nodes = session.GetInputCount();
 	std::vector<const char*> input_node_names(num_input_nodes);
-	std::vector<int64_t> input_node_dims;  // simplify... this model has only 1 input node {1, 3, 224, 224}.
+	std::vector<int64_t> input_node_dims;  // simplify... this model has only 1 input node {1, 3, 320, 320}.
 										   // Otherwise need vector<vector<>>
 
 	printf("Number of inputs = %zu\n", num_input_nodes);
@@ -240,15 +238,44 @@ int main(int argc, char** argv)
 	// Use OrtSessionGetOutputCount(), OrtSessionGetOutputName()
 	// OrtSessionGetOutputTypeInfo() as shown above.
 
+	// print number of model output nodes
+	size_t num_output_nodes = session.GetOutputCount();
+	std::vector<const char*> output_node_names(num_output_nodes);
+	std::vector<int64_t> output_node_dims;  // simplify... this model has only 1 input node {1, 3, 320, 320}.
+										   // Otherwise need vector<vector<>>
+
+	printf("Number of outputs = %zu\n", num_output_nodes);
+
+	// iterate over all input nodes
+	for (int i = 0; i < num_output_nodes; i++) {
+		// print output node names
+		char* output_name = session.GetOutputName(i, allocator);
+		printf("Output %d : name=%s\n", i, output_name);
+		output_node_names[i] = output_name;
+
+		// print output node types
+		Ort::TypeInfo type_info = session.GetOutputTypeInfo(i);
+		auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+
+		ONNXTensorElementDataType type = tensor_info.GetElementType();
+		printf("Output %d : type=%d\n", i, type);
+
+		// print output shapes/dims
+		output_node_dims = tensor_info.GetShape();
+		printf("Output %d : num_dims=%zu\n", i, output_node_dims.size());
+		for (int j = 0; j < output_node_dims.size(); j++)
+			printf("Output %d : dim %d=%jd\n", i, j, output_node_dims[j]);
+	}
+
 
   //*************************************************************************
   // Score the model using sample data, and inspect values
 
-	size_t input_tensor_size = 1 * 3 * 320 * 320;  // simplify ... using known dim values to calculate size
-											   // use OrtGetTensorShapeElementCount() to get official size!
+	size_t input_tensor_size = 1 * 3 * 320 * 320;	// simplify ... using known dim values to calculate size
+													// use OrtGetTensorShapeElementCount() to get official size!
 
 	std::vector<float> input_tensor_values(input_tensor_size);
-	std::vector<const char*> output_node_names = { "boxes", "scores" };
+	// std::vector<const char*> output_node_names = { "boxes", "scores" };
 
 	// initialize input data with values in [0.0, 1.0]
 	for (unsigned int i = 0; i < input_tensor_size; i++)
@@ -260,7 +287,8 @@ int main(int argc, char** argv)
 	assert(input_tensor.IsTensor());
 
 	// score model & input tensor, get back output tensor
-	for (int i = 0; i < 10; i++) {
+	// for (int i = 0; i < 10; i++)
+	// {
 		auto start = std::chrono::high_resolution_clock::now();
 		auto output_tensors = session.Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 2);
 		auto end = std::chrono::high_resolution_clock::now();
@@ -268,15 +296,16 @@ int main(int argc, char** argv)
 
 		auto duration = duration_cast<milliseconds>(end - start);
 		std::cout << "inference taken : " << duration.count() << " ms" << "\n";
-	}
-	/*
-	// Get pointer to output tensor float values
-	float* floatarr = output_tensors.front().GetTensorMutableData<float>();
-	assert(abs(floatarr[0] - 0.000045) < 1e-6);
+	// }
+	
 
+	// Get pointer to output tensor float values
+	auto scores = output_tensors[0].GetTensorMutableData<float[1][3234][78]>();
+	auto boxes = output_tensors[1].GetTensorMutableData<float[1][3234][4]>();
+	
 	// score the model, and print scores for first 5 classes
-	for (int i = 0; i < 5; i++)
-		printf("Score for class [%d] =  %f\n", i, floatarr[i]);
+	// for (int i = 0; i < 5; i++)
+	//	printf("Score for class [%d] =  %f\n", i, scores[i]);
 
 	// Results should be as below...
 	// Score for class[0] = 0.000045
@@ -284,7 +313,7 @@ int main(int argc, char** argv)
 	// Score for class[2] = 0.000125
 	// Score for class[3] = 0.001180
 	// Score for class[4] = 0.001317
-*/
+
 	printf("Done!\n");
 
 	// Create a window
@@ -344,7 +373,7 @@ int main(int argc, char** argv)
 			// Process the frame
 			if (!frame.empty())
 			{
-				// preprocess(frame, net, Size(inpWidth, inpHeight), scale, mean, swapRB);
+				preprocess(frame, Size(320, 320), 1.0, Scalar(123, 117, 104), true);
 				processedFramesQueue.push(frame);
 
 				/*
@@ -442,23 +471,21 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-inline void preprocess(const Mat& frame, Net& net, Size inpSize, float scale,
-	const Scalar& mean, bool swapRB)
+inline void preprocess(const Mat& frame, Size inpSize, float scale, const Scalar& mean, bool swapRB)
 {
-	static Mat blob;
 	// Create a 4D blob from a frame.
 	if (inpSize.width <= 0) inpSize.width = frame.cols;
 	if (inpSize.height <= 0) inpSize.height = frame.rows;
-	blobFromImage(frame, blob, 1.0, inpSize, Scalar(), swapRB, false, CV_8U);
-
-	// Run a model.
-	net.setInput(blob, "", scale, mean);
-	if (net.getLayer(0)->outputNameToIndex("im_info") != -1)  // Faster-RCNN or R-FCN
-	{
-		resize(frame, frame, inpSize);
-		Mat imInfo = (Mat_<float>(1, 3) << inpSize.height, inpSize.width, 1.6f);
-		net.setInput(imInfo, "im_info");
-	}
+	static Mat blob = blobFromImage(frame, 1.0, inpSize, Scalar(), swapRB, false, CV_32F);
+	auto s = blob.size.p;
+	// std::cout << s[0] << " - " << s[1] << " - " << s[2] << " - " << s[3] << "\n";
+	// create input tensor object from data values
+	int64_t input_tensor_shape[4] = {s[0], s[1], s[2], s[2]};
+	size_t input_tensor_size = s[0] * s[1] * s[2] * s[2];
+	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+	Ort::Value input_tensor = Ort::Value::CreateTensor<float>( allocator_info, blob.ptr<float>(), 
+		input_tensor_size, input_tensor_shape, blob.dims);
+	assert(input_tensor.IsTensor());
 }
 
 void postprocess(Mat& frame, const std::vector<Mat>& outs, Net& net)
