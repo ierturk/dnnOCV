@@ -83,20 +83,6 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 {
 	static cv::Mat blob;
 
-/*
-	cv::Mat img;
-	static bool b = true;
-	if (b) {
-		b = false;
-		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_25341.png");
-
-	}
-	else {
-		b = true;
-		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_01421.png");
-	}
-*/
-
 	blob = cv::dnn::blobFromImage(
 		frame,
 		1.0,

@@ -7,7 +7,7 @@
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-#include <opencv2/core/persistence.hpp>
+#include "opencv2/imgcodecs.hpp"
 
 #ifdef CV_CXX11
 #include <mutex>
@@ -182,6 +182,20 @@ int main(int argc, char** argv)
 		Mat frame;
 		while (process)
 		{
+			/*
+			cv::Mat img;
+			static bool b = true;
+			if (b) {
+				// b = false;
+				frame = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_25341.png");
+
+			}
+			else {
+				// b = true;
+				frame = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_01421.png");
+			}
+			*/
+
 			cap >> frame;
 			// cv::flip(frame, frame, 1);
 			if (!frame.empty())
@@ -304,12 +318,32 @@ void postprocess(Mat& frame, std::pair<float*, float*> outs)
 			float confidence = ssd_scores[78 * i + j];
 			if (confidence > confThreshold)
 			{
+				/*
 				int centerX = (int)(ssd_boxes[4*i] * frame.cols);
 				int centerY = (int)(ssd_boxes[4*i + 1] * frame.rows);
 				int width = (int)(ssd_boxes[4*i + 2] * frame.cols);
 				int height = (int)(ssd_boxes[4*i + 3] * frame.rows);
 				int left = centerX - width / 2;
 				int top = centerY - height / 2;
+				*/
+
+				/*
+				int left = (int)ssd_boxes[4 * i];
+				int top = (int)ssd_boxes[4 * i + 1];
+				int right = (int)ssd_boxes[4 * i + 2];
+				int bottom = (int)ssd_boxes[4 * i + 3];
+				int width = right - left + 1;
+				int height = bottom - top + 1;
+				*/
+				// if (width * height <= 1)
+				// {
+					int left = (int)(ssd_boxes[4 * i] * frame.cols);
+					int top = (int)(ssd_boxes[4 * i + 1] * frame.rows);
+					int right = (int)(ssd_boxes[4 * i + 2] * frame.cols);
+					int bottom = (int)(ssd_boxes[4 * i + 3] * frame.rows);
+					int width = right - left + 1;
+					int height = bottom - top + 1;
+				// }
 
 				classIds.push_back((int)j - 1);;
 				confidences.push_back((float)confidence);
