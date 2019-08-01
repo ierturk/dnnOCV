@@ -7,6 +7,7 @@
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/core/persistence.hpp>
 
 #ifdef CV_CXX11
 #include <mutex>
@@ -16,6 +17,7 @@
 
 #include "common.h"
 #include "onnxruntime/core/session/onnxruntime_cxx_api.h"
+#include "json.hpp"
 
 #include "OrtNet.h"
 
@@ -45,6 +47,7 @@ std::string keys =
 using namespace cv;
 using namespace dnn;
 using namespace std::chrono;
+using json = nlohmann::json;
 
 float confThreshold, nmsThreshold;
 std::vector<std::string> classes;
@@ -144,15 +147,12 @@ int main(int argc, char** argv)
 	// Open file with classes names.
 	if (parser.has("classes"))
 	{
-		std::string file = parser.get<String>("classes");
-		std::ifstream ifs(file.c_str());
-		if (!ifs.is_open())
-			CV_Error(Error::StsError, "File " + file + " not found");
-		std::string line;
-		while (std::getline(ifs, line))
-		{
-			classes.push_back(line);
-		}
+		std::ifstream ifs(L"D:/REPOs/ML/ssdIE/dnnOCV/build/RelWithDebInfo/train.json");
+		json j = json::parse(ifs);
+		for (auto cat : j.at("categories")) {
+			std::cout << cat["name"] << std::endl;
+			classes.push_back(cat["name"]);
+		}		
 	}
 
 	ortNet.Init(L"D:/REPOs/ML/ssdIE/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx");

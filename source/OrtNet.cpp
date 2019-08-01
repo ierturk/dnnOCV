@@ -107,8 +107,6 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 		CV_32F);
 
 	// auto bfi = blob.ptr<float[307200]>();
-
-
 	// std::cout << bfi[] << std::endl;
 	
 	input_tensor = Ort::Value::CreateTensor<float>(
@@ -117,8 +115,9 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 		input_node_sizes[0],
 		input_node_dims[0].data(),
 		input_node_dims[0].size());
-/*
 	assert(input_tensor.IsTensor());
+
+/*
 	auto it = input_tensor.GetTensorMutableData<float>();
 	auto info = input_tensor.GetTensorTypeAndShapeInfo();
 	auto cnt = info.GetElementCount();
