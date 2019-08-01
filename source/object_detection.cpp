@@ -211,8 +211,8 @@ int main(int argc, char** argv)
 			if (!frame.empty())
 			{
 				ortNet.setInputTensor(frame);
-				ortNet.forward();
 				processedFramesQueue.push(frame);
+				ortNet.forward();
 				predictionsQueue.push(ortNet.getOuts());
 				
 			}

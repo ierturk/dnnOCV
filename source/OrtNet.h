@@ -5,8 +5,8 @@
 #include <cassert>
 #include "onnxruntime/core/session/onnxruntime_cxx_api.h"
 #include <opencv2/dnn.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
 
 class OrtNet
 {
@@ -32,6 +32,8 @@ private:
 	Ort::Session session = Ort::Session(nullptr);
 	Ort::SessionOptions session_options;
 	Ort::Allocator allocator = Ort::Allocator::CreateDefault();
+	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
 
 	// Model ***
 	// Inputs

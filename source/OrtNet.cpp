@@ -92,14 +92,30 @@ void OrtNet::Init(const char* model_path)
 
 void OrtNet::setInputTensor(const cv::Mat& frame)
 {
+	cv::Mat img;
+	static bool b = true;
+
+	if (b) {
+		b = false;
+		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_25341.png");
+
+	}
+	else {
+		b = true;
+		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_01421.png");
+
+	}
+
+
 	static cv::Mat blob = cv::dnn::blobFromImage(
-		frame,
+		img,
 		1.0,
 		cv::Size(320,320),
 		cv::Scalar(123, 117, 104),
 		true, 
 		false, 
 		CV_32F);
+
 
 /*
 	static cv::Mat resized_image;
@@ -111,8 +127,6 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 	cv::subtract(img_float, cv::Scalar(123.0f, 117.0f, 104.0f), img_float);
 */
 	
-	Ort::AllocatorInfo allocator_info = Ort::AllocatorInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-
 	input_tensor = Ort::Value::CreateTensor<float>(
 		allocator_info,
 		blob.ptr<float>(),
