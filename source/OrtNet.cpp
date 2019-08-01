@@ -71,17 +71,6 @@ void OrtNet::Init(const wchar_t* model_path)
 		for (int j = 0; j < output_node_dims[i].size(); j++)
 			printf("Output %d : dim %d=%jd\n", i, j, output_node_dims[i][j]);
 	}
-
-
-	//*************************************************************************
-	// Score the model using sample data, and inspect values
-
-	std::vector<float> input_tensor_values(input_node_sizes[0]);
-	// std::vector<const char*> output_node_names = { "boxes", "scores" };
-
-	// initialize input data with values in [0.0, 1.0]
-	for (unsigned int i = 0; i < input_node_sizes[0]; i++)
-		input_tensor_values[i] = (float)i / (input_node_sizes[0] + 1);
 }
 #else
 void OrtNet::Init(const char* model_path)
@@ -92,9 +81,11 @@ void OrtNet::Init(const char* model_path)
 
 void OrtNet::setInputTensor(const cv::Mat& frame)
 {
+	static cv::Mat blob;
+
+/*
 	cv::Mat img;
 	static bool b = true;
-
 	if (b) {
 		b = false;
 		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_25341.png");
@@ -103,12 +94,11 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 	else {
 		b = true;
 		img = cv::imread("D:/REPOs/ML/ssdIE/ssdIE/demo/cow_01421.png");
-
 	}
+*/
 
-
-	static cv::Mat blob = cv::dnn::blobFromImage(
-		img,
+	blob = cv::dnn::blobFromImage(
+		frame,
 		1.0,
 		cv::Size(320,320),
 		cv::Scalar(123, 117, 104),
@@ -116,16 +106,10 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 		false, 
 		CV_32F);
 
+	// auto bfi = blob.ptr<float[307200]>();
 
-/*
-	static cv::Mat resized_image;
-	cv::flip(frame, resized_image, 1);
-	cv::cvtColor(resized_image, resized_image, cv::COLOR_BGR2RGB);
-	cv::resize(resized_image, resized_image, cv::Size(320, 320));
-	static cv::Mat img_float;
-	resized_image.convertTo(img_float, CV_32F, 1);
-	cv::subtract(img_float, cv::Scalar(123.0f, 117.0f, 104.0f), img_float);
-*/
+
+	// std::cout << bfi[] << std::endl;
 	
 	input_tensor = Ort::Value::CreateTensor<float>(
 		allocator_info,
@@ -133,8 +117,14 @@ void OrtNet::setInputTensor(const cv::Mat& frame)
 		input_node_sizes[0],
 		input_node_dims[0].data(),
 		input_node_dims[0].size());
-
+/*
 	assert(input_tensor.IsTensor());
+	auto it = input_tensor.GetTensorMutableData<float>();
+	auto info = input_tensor.GetTensorTypeAndShapeInfo();
+	auto cnt = info.GetElementCount();
+	auto t = info.GetShape();
+	cnt;
+*/
 }
 
 void OrtNet::forward()
