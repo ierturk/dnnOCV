@@ -21,7 +21,7 @@ public:
 
 private:
 	// Ort Environment
-	Ort::Env env = Ort::Env(nullptr);
+	// Ort::Env env = Ort::Env(nullptr);
 	Ort::Session session = Ort::Session(nullptr);
 	Ort::SessionOptions session_options;
 	Ort::Allocator allocator = Ort::Allocator::CreateDefault();

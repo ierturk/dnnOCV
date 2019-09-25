@@ -22,7 +22,10 @@ void drawPred(int classId, float conf, int left, int top, int right, int bottom,
 
 void callback(int pos, void* userdata);
 
-OrtNet *ortNet = new OrtNet();
+Ort::Env envOrtNet = Ort::Env(nullptr);
+
+OrtNet *ortNetR = new OrtNet();
+OrtNet *ortNetL = new OrtNet();
 
 template <typename T>
 class QueueFPS : public std::queue<T>
@@ -79,85 +82,132 @@ int main(int argc, char** argv)
 	confThreshold = 0.5;
 	nmsThreshold = 0.4;
 
-	ortNet->Init("/home/ierturk/Work/REPOs/ssd/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx");
+    envOrtNet = Ort::Env(ORT_LOGGING_LEVEL_FATAL, "OrtEnv");
+	ortNetR->Init("/home/ierturk/Work/REPOs/ssd/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx");
+    ortNetL->Init("/home/ierturk/Work/REPOs/ssd/ssdIE/outputs/mobilenet_v2_ssd320_clk_trainval2019/model_040000.onnx");
 
-	// Create a window
+
+    // Create a window
 	static const std::string kWinName = "sgDetector";
 	namedWindow(kWinName, WINDOW_NORMAL);
 	int initialConf = (int)(confThreshold * 100);
 	createTrackbar("Confidence threshold, %", kWinName, &initialConf, 99, callback);
 
 	// Open a video file or an image file or a camera stream.
-	VideoCapture cap;
-	cap.open("/home/ierturk/Downloads/happytime-rtsp-server/r.mp4");
+	VideoCapture capR;
+    VideoCapture capL;
+	capR.open("/home/ierturk/Downloads/happytime-rtsp-server/r.mp4");
+    capL.open("/home/ierturk/Downloads/happytime-rtsp-server/l.mp4");
 
 	bool process = true;
 
 	// Frames capturing thread
-	QueueFPS<Mat> framesQueue;
-	std::thread framesThread([&]() {
+	QueueFPS<Mat> framesQueueR;
+	std::thread framesThreadR([&]() {
 		Mat frame;
 		while (process) {
-			cap >> frame;
+			capR >> frame;
 			if (!frame.empty())
-				framesQueue.push(frame.clone());
+				framesQueueR.push(frame.clone());
 			else
 				break;
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 		});
 
+    QueueFPS<Mat> framesQueueL;
+    std::thread framesThreadL([&]() {
+        Mat frame;
+        while (process) {
+            capL >> frame;
+            if (!frame.empty())
+                framesQueueL.push(frame.clone());
+            else
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
+
+
+
 	// Frames processing thread
-	QueueFPS<Mat> processedFramesQueue;
-	QueueFPS<std::pair<float*, float*>> predictionsQueue;
-	std::thread processingThread([&]() {
+	QueueFPS<Mat> processedFramesQueueR;
+	QueueFPS<std::pair<float*, float*>> predictionsQueueR;
+	std::thread processingThreadR([&]() {
 		while (process)
 		{
 			// Get a next frame
 			Mat frame;
-			if (!framesQueue.empty())
+			if (!framesQueueR.empty())
 			{
-				frame = framesQueue.get();
-				framesQueue.clear();
+				frame = framesQueueR.get();
+				framesQueueR.clear();
 			}
 
 			// Process the frame
 			if (!frame.empty())
 			{
-				ortNet->setInputTensor(frame);
-				processedFramesQueue.push(frame);
-				ortNet->forward();
-				predictionsQueue.push(ortNet->getOuts());
+				ortNetR->setInputTensor(frame);
+				processedFramesQueueR.push(frame);
+				ortNetR->forward();
+				predictionsQueueR.push(ortNetR->getOuts());
 				
 			}
 		}
 		});
 
+    QueueFPS<Mat> processedFramesQueueL;
+    QueueFPS<std::pair<float*, float*>> predictionsQueueL;
+    std::thread processingThreadL([&]() {
+        while (process)
+        {
+            // Get a next frame
+            Mat frame;
+            if (!framesQueueL.empty())
+            {
+                frame = framesQueueL.get();
+                framesQueueL.clear();
+            }
+
+            // Process the frame
+            if (!frame.empty())
+            {
+                ortNetL->setInputTensor(frame);
+                processedFramesQueueL.push(frame);
+                ortNetL->forward();
+                predictionsQueueL.push(ortNetL->getOuts());
+
+            }
+        }
+    });
+
+
+
 	// Postprocessing and rendering loop
 	while (waitKey(1) < 0)
 	{
-		if (predictionsQueue.empty())
+		if (predictionsQueueR.empty())
 			continue;
-		std::pair<float*, float*> outs = predictionsQueue.get();
+		std::pair<float*, float*> outs = predictionsQueueR.get();
 
-		if (processedFramesQueue.empty())
+		if (processedFramesQueueR.empty())
 			continue;
 
-		Mat frame = processedFramesQueue.get();
+		Mat frame = processedFramesQueueR.get();
 
 		cv::resize(frame, frame, Size(512, 288));
 
 		postprocess(frame, outs);
 
-		if (predictionsQueue.counter > 1)
+		if (predictionsQueueR.counter > 1)
 		{
-			std::string label = format("Camera: %.2f FPS", framesQueue.getFPS());
+			std::string label = format("Camera: %.2f FPS", framesQueueR.getFPS());
 			putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
-			label = format("Network: %.2f FPS", predictionsQueue.getFPS());
+			label = format("Network: %.2f FPS", predictionsQueueR.getFPS());
 			putText(frame, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
-			label = format("Skipped frames: %d", framesQueue.counter - predictionsQueue.counter);
+			label = format("Skipped frames: %d", framesQueueR.counter - predictionsQueueR.counter);
 			putText(frame, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 		}
 
@@ -165,8 +215,11 @@ int main(int argc, char** argv)
 	}
 
 	process = false;
-	framesThread.join();
-	processingThread.join();
+	framesThreadR.join();
+	processingThreadR.join();
+    framesThreadL.join();
+    processingThreadL.join();
+
 	return 0;
 }
 

@@ -1,15 +1,17 @@
 #include "OrtNet.h"
 
+extern Ort::Env envOrtNet;
+
 OrtNet::OrtNet() = default;
 OrtNet::~OrtNet() = default;
 
 
 void OrtNet::Init(const char* model_path) {
 
-    env = Ort::Env(ORT_LOGGING_LEVEL_FATAL, "OrtEnv");
+    // envOrtNet = Ort::Env(ORT_LOGGING_LEVEL_FATAL, "OrtEnv");
     session_options.SetThreadPoolSize(4);
     session_options.SetGraphOptimizationLevel(2);
-    session = Ort::Session(env, model_path, session_options);
+    session = Ort::Session(envOrtNet, model_path, session_options);
 
     // print number of model input nodes
     int num_input_nodes = session.GetInputCount();
