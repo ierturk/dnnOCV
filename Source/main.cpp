@@ -186,32 +186,51 @@ int main(int argc, char** argv)
 	// Postprocessing and rendering loop
 	while (waitKey(1) < 0)
 	{
-		if (predictionsQueueR.empty())
+		if (predictionsQueueR.empty() || predictionsQueueL.empty())
 			continue;
-		std::pair<float*, float*> outs = predictionsQueueR.get();
+		std::pair<float*, float*> outsR = predictionsQueueR.get();
+        std::pair<float*, float*> outsL = predictionsQueueL.get();
 
-		if (processedFramesQueueR.empty())
+		if (processedFramesQueueR.empty() || processedFramesQueueL.empty())
 			continue;
 
-		Mat frame = processedFramesQueueR.get();
+		Mat frameR = processedFramesQueueR.get();
+        Mat frameL = processedFramesQueueL.get();
 
-		cv::resize(frame, frame, Size(512, 288));
+		cv::resize(frameR, frameR, Size(512, 288));
+        cv::resize(frameL, frameL, Size(512, 288));
 
-		postprocess(frame, outs);
+		postprocess(frameR, outsR);
+        postprocess(frameL, outsL);
 
 		if (predictionsQueueR.counter > 1)
 		{
 			std::string label = format("Camera: %.2f FPS", framesQueueR.getFPS());
-			putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+			putText(frameR, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
 			label = format("Network: %.2f FPS", predictionsQueueR.getFPS());
-			putText(frame, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+			putText(frameR, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 
 			label = format("Skipped frames: %d", framesQueueR.counter - predictionsQueueR.counter);
-			putText(frame, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+			putText(frameR, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
 		}
 
-		imshow(kWinName, frame);
+        if (predictionsQueueL.counter > 1)
+        {
+            std::string label = format("Camera: %.2f FPS", framesQueueL.getFPS());
+            putText(frameL, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+
+            label = format("Network: %.2f FPS", predictionsQueueL.getFPS());
+            putText(frameL, label, Point(0, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+
+            label = format("Skipped frames: %d", framesQueueL.counter - predictionsQueueL.counter);
+            putText(frameL, label, Point(0, 45), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+        }
+
+        Mat frm;
+        vconcat(frameR, frameL, frm);
+
+		imshow(kWinName, frm);
 	}
 
 	process = false;
