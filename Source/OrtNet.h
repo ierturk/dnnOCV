@@ -1,9 +1,8 @@
-#pragma once
 #include <iostream>
 #include <iomanip>
 #include <chrono>
 #include <cassert>
-#include "onnxruntime/core/session/onnxruntime_cxx_api.h"
+#include "onnxruntime_cxx_api.h"
 #include <opencv2/dnn.hpp>
 
 class OrtNet
@@ -13,11 +12,7 @@ public:
 	~OrtNet();
 
 
-#ifdef _WIN32
-	void Init(const wchar_t* model_path);
-#else
 	void Init(const char* model_path);
-#endif
 
 	// Ort::Value getInputTensor(Mat blob);
 	void setInputTensor(const cv::Mat& frame);
