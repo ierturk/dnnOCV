@@ -96,8 +96,8 @@ int main(int argc, char** argv)
 	// Open a video file or an image file or a camera stream.
 	VideoCapture capR;
     VideoCapture capL;
-	capR.open("/home/ierturk/Downloads/happytime-rtsp-server/r.mp4");
-    capL.open("/home/ierturk/Downloads/happytime-rtsp-server/l.mp4");
+	capR.open("http://localhost:8080/673cafe537130fa4a280d3f4f3cde1ef/mp4/pnOOUNJfOo/RightCam/s.mp4");
+    capL.open("http://localhost:8080/673cafe537130fa4a280d3f4f3cde1ef/mp4/pnOOUNJfOo/LeftCam/s.mp4");
 
 	bool process = true;
 
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
 				framesQueueR.push(frame.clone());
 			else
 				break;
-			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+			std::this_thread::sleep_for(std::chrono::milliseconds(80));
 		}
 		});
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
                 framesQueueL.push(frame.clone());
             else
                 break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(80));
         }
     });
 
